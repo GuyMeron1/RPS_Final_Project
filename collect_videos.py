@@ -9,7 +9,6 @@ def mediapipe_detection(image, model):
     image_rgb.flags.writeable = True
     image = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
     return image, results
-
 def draw_landmarks(image, results):
     mp_drawing = mp.solutions.drawing_utils
     # Face
@@ -33,13 +32,7 @@ def draw_landmarks(image, results):
             mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=4),
             mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2)
         )
-
 def collect_videos(DATA_PATH, actions, videos_per_action, frames_per_video, fps=30, pre_roll=10):
-    """
-    Collect videos from webcam, display landmarks and text,
-    but save only clean videos without drawings or text.
-    The first 'pre_roll' frames are discarded to ensure fresh frames.
-    """
     video_dir = os.path.join(DATA_PATH, "videos")
     os.makedirs(video_dir, exist_ok=True)
 
@@ -64,53 +57,50 @@ def collect_videos(DATA_PATH, actions, videos_per_action, frames_per_video, fps=
 
                 print(f"Recording {action} video {i}")
 
-                # --- PRE-ROLL: discard first few frames to flush camera ---
+                # Pre-roll: discard first few frames to flush camera
                 for _ in range(pre_roll):
                     ret, frame = cap.read()
                     if not ret:
                         break
-                    # optional: display pre-roll frames
                     frame_disp, results = mediapipe_detection(frame, holistic)
                     draw_landmarks(frame_disp, results)
-                    cv2.putText(frame_disp, "GET READY...", (120, 200),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 4, cv2.LINE_AA)
+                    cv2.putText(frame_disp, "GET READY...", (120, 200), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 4, cv2.LINE_AA)
                     cv2.imshow("Recording", frame_disp)
                     cv2.waitKey(100)
 
-                # --- RECORD ACTUAL FRAMES ---
+                # Record frames
                 for frame_num in range(frames_per_video):
                     ret, frame = cap.read()
                     if not ret:
                         break
 
-                    clean_frame = frame.copy()  # save clean frame
+                    # Save clean frame
+                    clean_frame = frame.copy()
 
-                    # display landmarks for feedback
+                    # display landmarks
                     frame_disp, results = mediapipe_detection(frame, holistic)
                     draw_landmarks(frame_disp, results)
-                    cv2.putText(frame_disp, f'{action} Video {i}/{existing + videos_per_action}',
-                                (15,12), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
+                    cv2.putText(frame_disp, f'{action} Video {i}/{existing + videos_per_action}',(15,12), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
                     cv2.imshow("Recording", frame_disp)
 
-                    # write only clean frame
+                    # Write only clean frame
                     out.write(clean_frame)
 
                     if cv2.waitKey(1) & 0xFF == ord('q'):
                         break
 
-                out.release()  # save video file
-
+                # Save video file
+                out.release()
     cap.release()
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     DATA_PATH = "Data"
     actions = ["Rock", "Paper", "Scissors"]
-
     collect_videos(
         DATA_PATH,
         actions,
-        videos_per_action=5,    # number of videos per action
+        videos_per_action=1,    # number of videos to record per action
         frames_per_video=64,    # frames per video
         pre_roll=15             # discard first 15 frames for clean start
     )

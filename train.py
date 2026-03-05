@@ -33,37 +33,59 @@ y_valid = np.argmax(y_valid, axis=1) if y_valid.ndim > 1 else y_valid
 y_test  = np.argmax(y_test, axis=1)  if y_test.ndim > 1 else y_test
 
 def train_knn():
-    param_grid = {'n_neighbors':[1,3,5,7], 'p':[1,2]}
+    param_grid = {'n_neighbors': [1, 3, 5, 7, 9, 11, 15, 21], 'p': [1, 2]}
     metrics = {}
+    knn_history = [] # Save results for model_visualizer.py
+
     for k in param_grid['n_neighbors']:
         for p in param_grid['p']:
             knn = KNeighborsClassifier(n_neighbors=k, p=p)
             knn.fit(X_train, y_train)
             y_val_pred = knn.predict(X_valid)
-            metrics[(k,p)] = f1_score(y_valid, y_val_pred, average='macro')
+            score = f1_score(y_valid, y_val_pred, average='macro')
+
+            metrics[(k, p)] = score
+            # Save the results of this round
+            knn_history.append({'k': k, 'p': p, 'score': score})
+
+    # Save all the results in a pickle file for model_visualizer.py
+    with open(os.path.join(DATA_PICKLE_DIR, "knn_training_history.pkl"), "wb") as f:
+        pickle.dump(knn_history, f)
+
     best_params = max(metrics, key=metrics.get)
     best_knn = KNeighborsClassifier(n_neighbors=best_params[0], p=best_params[1])
     best_knn.fit(np.vstack([X_train, X_valid]), np.hstack([y_train, y_valid]))
-    with open(os.path.join(MODEL_DIR, "knn_model.pkl"), "wb") as f: pickle.dump(best_knn, f)
+
+    with open(os.path.join(MODEL_DIR, "knn_model.pkl"), "wb") as f:
+        pickle.dump(best_knn, f)
+
     print(f"KNN - Best params: {best_params}")
     return best_knn
 def train_nb():
-    param_grid = {'var_smoothing':[1e-9,1e-8,1e-7]}
+    param_grid = {'var_smoothing': [1e-9, 1e-8, 1e-7]}
     metrics = {}
     for vs in param_grid['var_smoothing']:
         nb = GaussianNB(var_smoothing=vs)
         nb.fit(X_train, y_train)
         y_val_pred = nb.predict(X_valid)
         metrics[vs] = f1_score(y_valid, y_val_pred, average='macro')
+
     best_vs = max(metrics, key=metrics.get)
     best_nb = GaussianNB(var_smoothing=best_vs)
-    best_nb.fit(np.vstack([X_train,X_valid]), np.hstack([y_train,y_valid]))
-    with open(os.path.join(MODEL_DIR, "naive_bayes_model.pkl"), "wb") as f: pickle.dump(best_nb, f)
+    best_nb.fit(np.vstack([X_train, X_valid]), np.hstack([y_train, y_valid]))
+
+    with open(os.path.join(MODEL_DIR, "naive_bayes_model.pkl"), "wb") as f:
+        pickle.dump(best_nb, f)
+
     print(f"Naive Bayes - Best var_smoothing: {best_vs}")
     return best_nb
 def train_dt():
-    param_grid = {'criterion':['gini','entropy'], 'max_depth':[None,3,5],
-                  'min_samples_split':[2,4], 'min_samples_leaf':[1,2]}
+    param_grid = {
+        'criterion': ['gini', 'entropy'],
+        'max_depth': [None, 3, 5],
+        'min_samples_split': [2, 4],
+        'min_samples_leaf': [1, 2]
+    }
     metrics = {}
     for c in param_grid['criterion']:
         for md in param_grid['max_depth']:
@@ -73,32 +95,44 @@ def train_dt():
                                                 min_samples_split=mss, min_samples_leaf=msl)
                     dt.fit(X_train, y_train)
                     y_val_pred = dt.predict(X_valid)
-                    metrics[(c,md,mss,msl)] = f1_score(y_valid, y_val_pred, average='macro')
+                    metrics[(c, md, mss, msl)] = f1_score(y_valid, y_val_pred, average='macro')
+
     best_params = max(metrics, key=metrics.get)
     best_dt = DecisionTreeClassifier(criterion=best_params[0], max_depth=best_params[1],
                                      min_samples_split=best_params[2], min_samples_leaf=best_params[3])
-    best_dt.fit(np.vstack([X_train,X_valid]), np.hstack([y_train,y_valid]))
-    with open(os.path.join(MODEL_DIR, "decision_tree_model.pkl"), "wb") as f: pickle.dump(best_dt, f)
+    best_dt.fit(np.vstack([X_train, X_valid]), np.hstack([y_train, y_valid]))
+
+    with open(os.path.join(MODEL_DIR, "decision_tree_model.pkl"), "wb") as f:
+        pickle.dump(best_dt, f)
+
     print(f"Decision Tree - Best params: {best_params}")
     return best_dt
 def train_svm():
-    param_grid = {'C':[0.1,1,10], 'gamma':[0.1,0.01], 'kernel':['linear','rbf']}
+    param_grid = {'C': [0.1, 1, 10], 'gamma': [0.1, 0.01], 'kernel': ['linear', 'rbf']}
     metrics = {}
     for C in param_grid['C']:
         for gamma in param_grid['gamma']:
             for kernel in param_grid['kernel']:
-                svm = SVC(C=C,gamma=gamma,kernel=kernel,probability=True)
+                svm = SVC(C=C, gamma=gamma, kernel=kernel, probability=True)
                 svm.fit(X_train, y_train)
                 y_val_pred = svm.predict(X_valid)
-                metrics[(C,gamma,kernel)] = f1_score(y_valid, y_val_pred, average='macro')
+                metrics[(C, gamma, kernel)] = f1_score(y_valid, y_val_pred, average='macro')
+
     best_params = max(metrics, key=metrics.get)
     best_svm = SVC(C=best_params[0], gamma=best_params[1], kernel=best_params[2], probability=True)
-    best_svm.fit(np.vstack([X_train,X_valid]), np.hstack([y_train,y_valid]))
-    with open(os.path.join(MODEL_DIR, "svm_model.pkl"), "wb") as f: pickle.dump(best_svm, f)
+    best_svm.fit(np.vstack([X_train, X_valid]), np.hstack([y_train, y_valid]))
+
+    with open(os.path.join(MODEL_DIR, "svm_model.pkl"), "wb") as f:
+        pickle.dump(best_svm, f)
+
     print(f"SVM - Best params: {best_params}")
     return best_svm
 def train_nn():
-    param_grid = {'hidden_layer_sizes': [(50,),(100,)], 'alpha':[0.0001,0.001], 'learning_rate':['constant','adaptive']}
+    param_grid = {
+        'hidden_layer_sizes': [(50,), (100,)],
+        'alpha': [0.0001, 0.001],
+        'learning_rate': ['constant', 'adaptive']
+    }
     metrics = {}
     for hls in param_grid['hidden_layer_sizes']:
         for alpha in param_grid['alpha']:
@@ -107,12 +141,16 @@ def train_nn():
                                    max_iter=500, random_state=42)
                 nn.fit(X_train, y_train)
                 y_val_pred = nn.predict(X_valid)
-                metrics[(hls,alpha,lr)] = f1_score(y_valid, y_val_pred, average='macro')
+                metrics[(hls, alpha, lr)] = f1_score(y_valid, y_val_pred, average='macro')
+
     best_params = max(metrics, key=metrics.get)
     best_nn = MLPClassifier(hidden_layer_sizes=best_params[0], alpha=best_params[1],
                             learning_rate=best_params[2], max_iter=500, random_state=42)
-    best_nn.fit(np.vstack([X_train,X_valid]), np.hstack([y_train,y_valid]))
-    with open(os.path.join(MODEL_DIR, "neural_net_model.pkl"), "wb") as f: pickle.dump(best_nn, f)
+    best_nn.fit(np.vstack([X_train, X_valid]), np.hstack([y_train, y_valid]))
+
+    with open(os.path.join(MODEL_DIR, "neural_net_model.pkl"), "wb") as f:
+        pickle.dump(best_nn, f)
+
     print(f"Neural Net - Best params: {best_params}")
     return best_nn
 

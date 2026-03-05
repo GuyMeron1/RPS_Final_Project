@@ -65,12 +65,10 @@ def process_videos_to_keypoints(DATA_PATH, sequence_length=None, skip_rate=1):
 
                 cap.release()
                 print(f"Processed {action} {video_file} -> {frame_idx} frames keypoints")
-
     print("All videos processed!")
 def save_pickles_from_keypoints(DATA_PATH, test_size=0.2, valid_size=0.1):
     keypoints_dir = os.path.join(DATA_PATH, "keypoints")
 
-    # ✅ Explicit class order
     actions = ["Rock", "Paper", "Scissors"]
     label_map = {label: idx for idx, label in enumerate(actions)}
 
@@ -103,15 +101,10 @@ def save_pickles_from_keypoints(DATA_PATH, test_size=0.2, valid_size=0.1):
     y = to_categorical(y).astype(int)
 
     # Train / Test split
-    X_train_full, X_test, y_train_full, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=42, stratify=y
-    )
-
+    X_train_full, X_test, y_train_full, y_test = train_test_split(X, y, test_size=test_size, random_state=42, stratify=y)
     # Train / Validation split
     valid_ratio = valid_size / (1 - test_size)
-    X_train, X_valid, y_train, y_valid = train_test_split(
-        X_train_full, y_train_full, test_size=valid_ratio, random_state=42, stratify=y_train_full
-    )
+    X_train, X_valid, y_train, y_valid = train_test_split(X_train_full, y_train_full, test_size=valid_ratio, random_state=42, stratify=y_train_full)
 
     pickles_dir = os.path.join(DATA_PATH, "pickles")
     os.makedirs(pickles_dir, exist_ok=True)
@@ -131,9 +124,7 @@ def save_pickles_from_keypoints(DATA_PATH, test_size=0.2, valid_size=0.1):
 
     print("Pickle files (train/valid/test) saved successfully!")
 
-
 if __name__ == "__main__":
     DATA_PATH = "Data"
-
     process_videos_to_keypoints(DATA_PATH, skip_rate=22)
     save_pickles_from_keypoints(DATA_PATH)

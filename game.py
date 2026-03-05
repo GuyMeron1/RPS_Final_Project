@@ -4,32 +4,35 @@ import os
 import numpy as np
 import mediapipe as mp
 import pickle
+import time
 from collections import deque
 
-# =========================
-# CONFIG
-# =========================
 ACTIONS = ["rock", "paper", "scissors"]
 THRESHOLD = 0.5
 FRAMES_PER_ACTION = 3
-
-MODEL_DIR = "Models"
-MODELS_TRAINED_DIR = "Models_Trained"
-
 RESOURCE_DIR = "Resources"
 
-# =========================
-# LOAD MODEL
-# =========================
-"""with open(os.path.join(MODEL_DIR, "best_model.pkl"), "rb") as f:
-    model = pickle.load(f)"""
+def load_last_model_trained():
+    MODELS_DIR = "Models"
+    BEST_MODEL = "best_model.pkl"
+    path = os.path.join(MODELS_DIR, BEST_MODEL)
+    if not os.path.exists(path):
+        print(f"Error: {path} not found!")
+        return None
+    with open(path, "rb") as f:
+        return pickle.load(f)
+def load_best_model_ever_trained():
+    MODELS_TRAINED_DIR = "Models_Trained"
+    BEST_MODEL = "best_model_DT_60P_3F_20Each.pkl"
+    path = os.path.join(MODELS_TRAINED_DIR, BEST_MODEL)
+    if not os.path.exists(path):
+        print(f"Error: {path} not found!")
+        return None
+    with open(path, "rb") as f:
+        return pickle.load(f)
 
-with open(os.path.join(MODELS_TRAINED_DIR, "best_model_DT_60P_3F_20Each.pkl"), "rb") as f:
-    model = pickle.load(f)
+model = load_best_model_ever_trained()
 
-# =========================
-# MEDIAPIPE SETUP
-# =========================
 mp_holistic = mp.solutions.holistic
 mp_drawing = mp.solutions.drawing_utils
 
@@ -39,19 +42,13 @@ def mediapipe_detection(image, holistic):
     results = holistic.process(image_rgb)
     image_rgb.flags.writeable = True
     return image, results
-
 def extract_keypoints(results):
-    pose = np.array([[l.x, l.y, l.z, l.visibility]
-                     for l in results.pose_landmarks.landmark]).flatten() if results.pose_landmarks else np.zeros(33*4)
-    face = np.array([[l.x, l.y, l.z]
-                     for l in results.face_landmarks.landmark]).flatten() if results.face_landmarks else np.zeros(468*3)
-    right_hand = np.array([[l.x, l.y, l.z]
-                           for l in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(21*3)
+    pose = np.array([[l.x, l.y, l.z, l.visibility] for l in results.pose_landmarks.landmark]).flatten() if results.pose_landmarks else np.zeros(33 * 4)
+    face = np.array( [[l.x, l.y, l.z] for l in results.face_landmarks.landmark]).flatten() if results.face_landmarks else np.zeros(468 * 3)
+    right_hand = np.array([[l.x, l.y, l.z] for l in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(21 * 3)
     return np.concatenate([pose, face, right_hand])
 
-# =========================
 # VIDEO & GUI SETUP
-# =========================
 cap = cv2.VideoCapture(0)
 imgBG = cv2.imread(f"{RESOURCE_DIR}/BG.jpg")
 
@@ -69,28 +66,26 @@ scaled_width = int(cam_w * scale_factor)
 crop_start = (scaled_width - player_box_width) // 2
 crop_end = crop_start + player_box_width
 
-# =========================
 # GAME STATE
-# =========================
 sequence = deque(maxlen=FRAMES_PER_ACTION)
 current_player_action = None
 last_player_action = None
 ai_current_action = None
+player_score = 0
+ai_score = 0
 
-# =========================
+# COOLDOWN SETUP
+last_score_time = 0
+COOLDOWN_SECONDS = 0.2
+
 # MAIN LOOP
-# =========================
-with mp_holistic.Holistic(min_detection_confidence=0.5,
-                          min_tracking_confidence=0.5) as holistic:
-
+with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
     while True:
         success, frame = cap.read()
         if not success:
             break
 
         imgDisplay = imgBG.copy()
-
-        # Resize & crop camera
         imgScaled = cv2.resize(frame, (0, 0), None, scale_factor, scale_factor)
         imgScaled = imgScaled[:, crop_start:crop_end]
 
@@ -98,9 +93,7 @@ with mp_holistic.Holistic(min_detection_confidence=0.5,
         keypoints = extract_keypoints(results)
         sequence.append(keypoints)
 
-        # =========================
         # PREDICTION LOGIC
-        # =========================
         if len(sequence) == FRAMES_PER_ACTION:
             seq_array = np.array(sequence).flatten().reshape(1, -1)
             probs = model.predict_proba(seq_array)[0]
@@ -109,38 +102,38 @@ with mp_holistic.Holistic(min_detection_confidence=0.5,
             if probs[pred_class] > THRESHOLD:
                 current_player_action = ACTIONS[pred_class]
 
+                # ACTION CHANGE DETECTED
+                if current_player_action != last_player_action and current_player_action is not None:
 
-        # =========================
-        # ACTION CHANGE DETECTED
-        # =========================
-        if current_player_action != last_player_action and current_player_action is not None:
-            last_player_action = current_player_action
-            print(f"Player changed to: {current_player_action}")
+                    last_player_action = current_player_action
+                    print(f"Player changed to: {current_player_action}")
 
-            # AI mirrors the player
-            #ai_current_action = current_player_action #this line for same action as the player.
-            # AI chooses the winning move against the player
-            winning_move = {
-                "rock": "paper",
-                "paper": "scissors",
-                "scissors": "rock"
-            }
+                    winning_move = {
+                        "rock": "paper",
+                        "paper": "scissors",
+                        "scissors": "rock"
+                    }
 
-            ai_current_action = winning_move[current_player_action]
+                    ai_current_action = winning_move[current_player_action]
+                    print(f"AI mirrors with: {ai_current_action}")
 
-            print(f"AI mirrors with: {ai_current_action}")
+                    imgAI = cv2.imread(f"{RESOURCE_DIR}/{ai_current_action}.png", cv2.IMREAD_UNCHANGED)
+                    if imgAI is not None:
+                        imgAI = cv2.resize(imgAI, (0, 0), None, fx=1.3, fy=1.3)
+                        imgBG = cvzone.overlayPNG(imgBG.copy(), imgAI, (230, 510))
 
-            # Update AI image
-            imgAI = cv2.imread(f"{RESOURCE_DIR}/{ai_current_action}.png", cv2.IMREAD_UNCHANGED)
-            if imgAI is not None:
-                imgAI = cv2.resize(imgAI, (0, 0), None, fx=1.3, fy=1.3)
-                imgBG = cvzone.overlayPNG(imgBG, imgAI, (230, 510))
+                    current_time = time.time()
+                    if (current_time - last_score_time) > COOLDOWN_SECONDS:
+                        ai_score += 1
+                        last_score_time = current_time  # עדכון זמן הניקוד האחרון
+                        print(f"Score updated! AI Score: {ai_score}")
 
-        # =========================
         # GUI RENDERING
-        # =========================
+        cv2.putText(imgDisplay, f"{ai_score:02d}", (715, 375), cv2.FONT_HERSHEY_SIMPLEX, 3, (255, 255, 255), 7)
+        cv2.putText(imgDisplay, f"{player_score:02d}", (1980, 375), cv2.FONT_HERSHEY_SIMPLEX, 3, (255, 255, 255), 7)
+
         imgDisplay[player_box_y:player_box_y + player_box_height,
-                   player_box_x:player_box_x + player_box_width] = imgScaled
+        player_box_x:player_box_x + player_box_width] = imgScaled
 
         cv2.imshow("BG", imgDisplay)
 

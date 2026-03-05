@@ -8,12 +8,21 @@ colors = [(245, 117, 16), (117, 245, 16), (16, 117, 245)]
 actions = ['Rock', 'Paper', 'Scissors']  # must match the order used in training
 frames_per_action = 3
 
-MODEL_DIR = "Models"
-MODELS_TRAINED_DIR = "Models_Trained"
-"""with open(os.path.join(MODEL_DIR, "best_model.pkl"), "rb") as f:
-    model = pickle.load(f)"""
-with open(os.path.join(MODELS_TRAINED_DIR, "best_model_DT_60P_3F_20Each.pkl"), "rb") as f:
-    model = pickle.load(f)
+def load_last_model_trained():
+    MODELS_DIR = "Models"
+    BEST_MODEL = "best_model.pkl"
+    # LOAD MODEL
+    with open(os.path.join(MODELS_DIR, BEST_MODEL), "rb") as f:
+        model = pickle.load(f)
+    return model
+def load_best_model_ever_trained():
+    MODELS_DIR = "Models_Trained"
+    BEST_MODEL = "best_model_DT_60P_3F_20Each.pkl"
+    # LOAD MODEL
+    with open(os.path.join(MODELS_DIR, BEST_MODEL), "rb") as f:
+        model = pickle.load(f)
+    return model
+model = load_last_model_trained()
 
 def mediapipe_detection(image, model):
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -54,13 +63,13 @@ def prob_viz(res, actions, input_frame, colors):
     for num, prob in enumerate(res):
         cv2.rectangle(output_frame, (0, 60 + num * 40), (int(prob * 100), 90 + num * 40), colors[num], -1)
         cv2.putText(output_frame, actions[num], (0, 85 + num * 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+        cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
     return output_frame
 
-# ----------------- Real-time Detection -----------------
+# Real time Detection
 sequence = []
 sentence = []
-threshold = 0.5  # minimum probability to accept prediction
+threshold = 0.5  # Minimum probability to accept prediction
 
 cap = cv2.VideoCapture(0)
 
@@ -97,7 +106,7 @@ with mp.solutions.holistic.Holistic(min_detection_confidence=0.5, min_tracking_c
         # Display recognized actions
         cv2.rectangle(image, (0,0), (640,40), (245,117,16), -1)
         cv2.putText(image, ' '.join(sentence), (3,30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+        cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
 
         cv2.imshow("OpenCV Feed", image)
 
