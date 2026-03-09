@@ -44,13 +44,14 @@ def mediapipe_detection(image, holistic):
     return image, results
 def extract_keypoints(results):
     pose = np.array([[l.x, l.y, l.z, l.visibility] for l in results.pose_landmarks.landmark]).flatten() if results.pose_landmarks else np.zeros(33 * 4)
-    face = np.array( [[l.x, l.y, l.z] for l in results.face_landmarks.landmark]).flatten() if results.face_landmarks else np.zeros(468 * 3)
+    face = np.array([[l.x, l.y, l.z] for l in results.face_landmarks.landmark]).flatten() if results.face_landmarks else np.zeros(468 * 3)
     right_hand = np.array([[l.x, l.y, l.z] for l in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(21 * 3)
     return np.concatenate([pose, face, right_hand])
 
 # VIDEO & GUI SETUP
 cap = cv2.VideoCapture(0)
-imgBG = cv2.imread(f"{RESOURCE_DIR}/BG.jpg")
+imgBG_original = cv2.imread(f"{RESOURCE_DIR}/BG.jpg")
+imgBG = imgBG_original.copy()
 
 player_box_x, player_box_y = 1427, 418
 player_box_width = 2143 - player_box_x
@@ -78,6 +79,10 @@ ai_score = 0
 last_score_time = 0
 COOLDOWN_SECONDS = 0.2
 
+# TEXT SETUP
+NO_HAND_CONFIRM_FRAMES = 5
+no_hand_counter = 0
+
 # MAIN LOOP
 with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
     while True:
@@ -90,43 +95,63 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
         imgScaled = imgScaled[:, crop_start:crop_end]
 
         image, results = mediapipe_detection(imgScaled, holistic)
+
+        # CHECK IF HAND IS IN FRAME
+        hand_in_frame = results.right_hand_landmarks is not None
+
         keypoints = extract_keypoints(results)
         sequence.append(keypoints)
 
         # PREDICTION LOGIC
-        if len(sequence) == FRAMES_PER_ACTION:
-            seq_array = np.array(sequence).flatten().reshape(1, -1)
-            probs = model.predict_proba(seq_array)[0]
-            pred_class = np.argmax(probs)
+        if hand_in_frame:
+            no_hand_counter = 0
 
-            if probs[pred_class] > THRESHOLD:
-                current_player_action = ACTIONS[pred_class]
+            cv2.putText(imgDisplay, "Play!", (1005, 760), cv2.FONT_HERSHEY_SIMPLEX, 4, (255, 0, 255), 10)
 
-                # ACTION CHANGE DETECTED
-                if current_player_action != last_player_action and current_player_action is not None:
+            if len(sequence) == FRAMES_PER_ACTION:
+                seq_array = np.array(sequence).flatten().reshape(1, -1)
+                probs = model.predict_proba(seq_array)[0]
+                pred_class = np.argmax(probs)
 
-                    last_player_action = current_player_action
-                    print(f"Player changed to: {current_player_action}")
+                if probs[pred_class] > THRESHOLD:
+                    current_player_action = ACTIONS[pred_class]
 
-                    winning_move = {
-                        "rock": "paper",
-                        "paper": "scissors",
-                        "scissors": "rock"
-                    }
+                    # ACTION CHANGE DETECTED
+                    if current_player_action != last_player_action and current_player_action is not None:
 
-                    ai_current_action = winning_move[current_player_action]
-                    print(f"AI mirrors with: {ai_current_action}")
+                        last_player_action = current_player_action
+                        print(f"Player changed to: {current_player_action}")
 
-                    imgAI = cv2.imread(f"{RESOURCE_DIR}/{ai_current_action}.png", cv2.IMREAD_UNCHANGED)
-                    if imgAI is not None:
-                        imgAI = cv2.resize(imgAI, (0, 0), None, fx=1.3, fy=1.3)
-                        imgBG = cvzone.overlayPNG(imgBG.copy(), imgAI, (230, 510))
+                        winning_move = {
+                            "rock": "paper",
+                            "paper": "scissors",
+                            "scissors": "rock"
+                        }
 
-                    current_time = time.time()
-                    if (current_time - last_score_time) > COOLDOWN_SECONDS:
-                        ai_score += 1
-                        last_score_time = current_time  # עדכון זמן הניקוד האחרון
-                        print(f"Score updated! AI Score: {ai_score}")
+                        ai_current_action = winning_move[current_player_action]
+                        print(f"AI mirrors with: {ai_current_action}")
+
+                        imgAI = cv2.imread(f"{RESOURCE_DIR}/{ai_current_action}.png", cv2.IMREAD_UNCHANGED)
+                        if imgAI is not None:
+                            imgAI = cv2.resize(imgAI, (0, 0), None, fx=1.3, fy=1.3)
+                            imgBG = cvzone.overlayPNG(imgBG.copy(), imgAI, (230, 510))
+
+                        current_time = time.time()
+                        if (current_time - last_score_time) > COOLDOWN_SECONDS:
+                            ai_score += 1
+                            last_score_time = current_time
+                            print(f"Score updated! AI Score: {ai_score}")
+        else:
+            no_hand_counter += 1
+            if no_hand_counter >= NO_HAND_CONFIRM_FRAMES:
+                current_player_action = None
+
+                # RESET MEMORY AND VISUAL RESET
+                imgBG = imgBG_original.copy()
+                last_player_action = None
+
+                cv2.putText(imgDisplay, "No Hand", (1010, 710), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 255), 5)
+                cv2.putText(imgDisplay, "Detected", (1010, 780), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 255), 5)
 
         # GUI RENDERING
         cv2.putText(imgDisplay, f"{ai_score:02d}", (715, 375), cv2.FONT_HERSHEY_SIMPLEX, 3, (255, 255, 255), 7)
@@ -137,7 +162,15 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
 
         cv2.imshow("BG", imgDisplay)
 
-        if cv2.waitKey(1) & 0xFF == 27:
+        # INPUT HANDLING
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('r'):
+            ai_score = 0
+            player_score = 0
+            imgBG = imgBG_original.copy()
+            last_player_action = None
+            print("Reset Scores!")
+        elif key == 27:
             break
 
 cap.release()
