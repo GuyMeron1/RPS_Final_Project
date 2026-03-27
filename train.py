@@ -28,10 +28,6 @@ X_train = X_train.reshape(X_train.shape[0], -1)
 X_valid = X_valid.reshape(X_valid.shape[0], -1)
 X_test  = X_test.reshape(X_test.shape[0], -1)
 
-y_train = np.argmax(y_train, axis=1) if y_train.ndim > 1 else y_train
-y_valid = np.argmax(y_valid, axis=1) if y_valid.ndim > 1 else y_valid
-y_test  = np.argmax(y_test, axis=1)  if y_test.ndim > 1 else y_test
-
 def train_knn():
     param_grid = {'n_neighbors': [1, 3, 5, 7, 9, 11, 15, 21], 'p': [1, 2]}
     metrics = {}
@@ -134,6 +130,8 @@ def train_nn():
         'learning_rate': ['constant', 'adaptive']
     }
     metrics = {}
+
+    # שלב מציאת הפרמטרים הטובים ביותר (Hyperparameter Tuning)
     for hls in param_grid['hidden_layer_sizes']:
         for alpha in param_grid['alpha']:
             for lr in param_grid['learning_rate']:
@@ -144,14 +142,38 @@ def train_nn():
                 metrics[(hls, alpha, lr)] = f1_score(y_valid, y_val_pred, average='macro')
 
     best_params = max(metrics, key=metrics.get)
-    best_nn = MLPClassifier(hidden_layer_sizes=best_params[0], alpha=best_params[1],
-                            learning_rate=best_params[2], max_iter=500, random_state=42)
+
+    # אימון המודל הסופי עם תיעוד היסטוריה
+    # הפעם נפעיל early_stopping=True כדי ש-sklearn יתעד את ה-validation scores
+    best_nn = MLPClassifier(
+        hidden_layer_sizes=best_params[0],
+        alpha=best_params[1],
+        learning_rate=best_params[2],
+        max_iter=500,
+        random_state=42,
+        early_stopping=True,  # מאפשר תיעוד של validation scores ב-validation_scores_
+        validation_fraction=0.1  # אחוז מהנתונים לתיעוד תוך כדי אימון
+    )
+
+    # אימון על הסט המאוחד
     best_nn.fit(np.vstack([X_train, X_valid]), np.hstack([y_train, y_valid]))
 
+    # שמירת המודל
     with open(os.path.join(MODEL_DIR, "neural_net_model.pkl"), "wb") as f:
         pickle.dump(best_nn, f)
 
+    # --- שמירת היסטוריית האימון לגרפים ---
+    training_history = {
+        'loss': best_nn.loss_curve_,
+        'validation_scores': best_nn.validation_scores_ if hasattr(best_nn, 'validation_scores_') else []
+    }
+
+    with open(os.path.join(DATA_PICKLE_DIR, "nn_training_history.pkl"), "wb") as f:
+        pickle.dump(training_history, f)
+
     print(f"Neural Net - Best params: {best_params}")
+    print(f"Training history saved to {os.path.join(DATA_PICKLE_DIR, 'nn_training_history.pkl')}")
+
     return best_nn
 
 models = {

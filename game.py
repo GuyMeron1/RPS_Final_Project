@@ -31,7 +31,7 @@ def load_best_model_ever_trained():
     with open(path, "rb") as f:
         return pickle.load(f)
 
-model = load_best_model_ever_trained()
+model = load_last_model_trained()
 
 mp_holistic = mp.solutions.holistic
 mp_drawing = mp.solutions.drawing_utils

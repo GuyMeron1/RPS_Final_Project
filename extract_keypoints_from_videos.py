@@ -3,7 +3,6 @@ import os
 import numpy as np
 import mediapipe as mp
 import pickle
-from tensorflow.keras.utils import to_categorical
 from sklearn.model_selection import train_test_split
 
 def mediapipe_detection(image, model):
@@ -98,7 +97,7 @@ def save_pickles_from_keypoints(DATA_PATH, test_size=0.2, valid_size=0.1):
             print(f"Added {action} {video_folder} -> {len(sequence)} frames")
 
     X = np.array(X)
-    y = to_categorical(y).astype(int)
+    y = np.array(y)
 
     # Train / Test split
     X_train_full, X_test, y_train_full, y_test = train_test_split(X, y, test_size=test_size, random_state=42, stratify=y)
