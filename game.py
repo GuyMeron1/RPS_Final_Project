@@ -7,12 +7,14 @@ import pickle
 import time
 from collections import deque
 
-ACTIONS = ["rock", "paper", "scissors"]
-THRESHOLD = 0.5
-FRAMES_PER_ACTION = 3
-RESOURCE_DIR = "Resources"
+# Constants and Configuration
+ACTIONS = ["rock", "paper", "scissors"] # possible gestures
+THRESHOLD = 0.5 # minimum confidence for a prediction
+FRAMES_PER_ACTION = 3 # frames needed for a stable gesture
+RESOURCE_DIR = "Resources" # directory for UI elements
 
 def load_last_model_trained():
+    """Loads the latest model from the Models directory"""
     MODELS_DIR = "Models"
     BEST_MODEL = "best_model.pkl"
     path = os.path.join(MODELS_DIR, BEST_MODEL)
@@ -21,7 +23,9 @@ def load_last_model_trained():
         return None
     with open(path, "rb") as f:
         return pickle.load(f)
+
 def load_best_model_ever_trained():
+    """Loads a specific high-performing historical model"""
     MODELS_TRAINED_DIR = "Models_Trained"
     BEST_MODEL = "best_model_DT_60P_3F_20Each.pkl"
     path = os.path.join(MODELS_TRAINED_DIR, BEST_MODEL)
@@ -31,18 +35,23 @@ def load_best_model_ever_trained():
     with open(path, "rb") as f:
         return pickle.load(f)
 
+# Load the model to be used for predictions
 model = load_last_model_trained()
 
+# Mediapipe Setup
 mp_holistic = mp.solutions.holistic
 mp_drawing = mp.solutions.drawing_utils
 
 def mediapipe_detection(image, holistic):
+    """Converts image to RGB and processes it with Mediapipe"""
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    image_rgb.flags.writeable = False
+    image_rgb.flags.writeable = False # Optimization
     results = holistic.process(image_rgb)
     image_rgb.flags.writeable = True
     return image, results
+
 def extract_keypoints(results):
+    """Flattens pose, face, and hand landmarks into a single numpy array"""
     pose = np.array([[l.x, l.y, l.z, l.visibility] for l in results.pose_landmarks.landmark]).flatten() if results.pose_landmarks else np.zeros(33 * 4)
     face = np.array([[l.x, l.y, l.z] for l in results.face_landmarks.landmark]).flatten() if results.face_landmarks else np.zeros(468 * 3)
     right_hand = np.array([[l.x, l.y, l.z] for l in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(21 * 3)
@@ -53,13 +62,16 @@ cap = cv2.VideoCapture(0)
 imgBG_original = cv2.imread(f"{RESOURCE_DIR}/BG.jpg")
 imgBG = imgBG_original.copy()
 
+# Dimensions for the camera feed inside the UI
 player_box_x, player_box_y = 1427, 418
 player_box_width = 2143 - player_box_x
 player_box_height = 1170 - player_box_y
 
+# Set window to fullscreen mode
 cv2.namedWindow("BG", cv2.WINDOW_NORMAL)
 cv2.setWindowProperty("BG", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
+# Scaling calculations for the camera feed
 success, img = cap.read()
 cam_h, cam_w = img.shape[:2]
 scale_factor = player_box_height / cam_h
@@ -77,9 +89,9 @@ ai_score = 0
 
 # COOLDOWN SETUP
 last_score_time = 0
-COOLDOWN_SECONDS = 0.2
+COOLDOWN_SECONDS = 0.2 # Minimum time between changes of score
 
-# TEXT SETUP
+# HAND DETECTION TIMEOUT
 NO_HAND_CONFIRM_FRAMES = 5
 no_hand_counter = 0
 
@@ -91,6 +103,7 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
             break
 
         imgDisplay = imgBG.copy()
+        # Scale and crop camera frame to fit the UI box
         imgScaled = cv2.resize(frame, (0, 0), None, scale_factor, scale_factor)
         imgScaled = imgScaled[:, crop_start:crop_end]
 
@@ -113,6 +126,7 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                 probs = model.predict_proba(seq_array)[0]
                 pred_class = np.argmax(probs)
 
+                # Only act if model is confident
                 if probs[pred_class] > THRESHOLD:
                     current_player_action = ACTIONS[pred_class]
 
@@ -122,6 +136,7 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                         last_player_action = current_player_action
                         print(f"Player changed to: {current_player_action}")
 
+                        # AI determines winning counter-move
                         winning_move = {
                             "rock": "paper",
                             "paper": "scissors",
@@ -131,17 +146,20 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                         ai_current_action = winning_move[current_player_action]
                         print(f"AI mirrors with: {ai_current_action}")
 
+                        # Load and display the AI's move
                         imgAI = cv2.imread(f"{RESOURCE_DIR}/{ai_current_action}.png", cv2.IMREAD_UNCHANGED)
                         if imgAI is not None:
                             imgAI = cv2.resize(imgAI, (0, 0), None, fx=1.3, fy=1.3)
                             imgBG = cvzone.overlayPNG(imgBG.copy(), imgAI, (230, 510))
 
+                        # Update AI Score with cooldown check
                         current_time = time.time()
                         if (current_time - last_score_time) > COOLDOWN_SECONDS:
                             ai_score += 1
                             last_score_time = current_time
                             print(f"Score updated! AI Score: {ai_score}")
         else:
+            # Handle hand removal from frame
             no_hand_counter += 1
             if no_hand_counter >= NO_HAND_CONFIRM_FRAMES:
                 current_player_action = None
@@ -157,6 +175,7 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
         cv2.putText(imgDisplay, f"{ai_score:02d}", (715, 375), cv2.FONT_HERSHEY_SIMPLEX, 3, (255, 255, 255), 7)
         cv2.putText(imgDisplay, f"{player_score:02d}", (1980, 375), cv2.FONT_HERSHEY_SIMPLEX, 3, (255, 255, 255), 7)
 
+        # Place the camera feed into the background image
         imgDisplay[player_box_y:player_box_y + player_box_height,
         player_box_x:player_box_x + player_box_width] = imgScaled
 
@@ -164,13 +183,13 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
 
         # INPUT HANDLING
         key = cv2.waitKey(1) & 0xFF
-        if key == ord('r'):
+        if key == ord('r'): # Reset game
             ai_score = 0
             player_score = 0
             imgBG = imgBG_original.copy()
             last_player_action = None
             print("Reset Scores!")
-        elif key == 27:
+        elif key == 27: # Exit on ESC
             break
 
 cap.release()
