@@ -53,7 +53,7 @@ def load_data(file_prefix):
 # Statistical Visualization Functions
 def plot_knn_history_from_train():
     """
-    Creates a graph to show how the best settings for the KNN model founded.
+    Creates a graph to show how the best settings for the KNN model were found.
     - Compares accuracy for different numbers of neighbors (K).
     - Compares two different ways to measure distance (p=1 vs p=2).
     """
@@ -68,7 +68,10 @@ def plot_knn_history_from_train():
         history = pickle.load(f)
     df = pd.DataFrame(history)
 
-    # Extract chosen hyperparameters from the saved model for visual highlighting
+    # Align X-axis ticks with the specific K-values tested during grid search
+    unique_ks = sorted(df['k'].unique())
+
+    # Extract chosen hyperparameters
     selected_k, selected_p = None, None
     if os.path.exists(KNN_MODEL_PATH):
         with open(KNN_MODEL_PATH, "rb") as f:
@@ -77,20 +80,24 @@ def plot_knn_history_from_train():
                 selected_k = m.n_neighbors
                 selected_p = m.p
 
-    fig, axes = plt.subplots(2, 1, figsize=(10, 10), sharex=True)
+    # Disable shared axes to ensure independent labels and ticks for each distance metric
+    fig, axes = plt.subplots(2, 1, figsize=(10, 10), sharex=False)
     p_titles = {1: "Manhattan Distance (p=1)", 2: "Euclidean Distance (p=2)"}
 
     for i, p_val in enumerate([1, 2]):
         subset = df[df['p'] == p_val]
         ax = axes[i]
-        ax.plot(subset['k'], subset['score'], marker='o', linewidth=2, color='tab:blue')
+        ax.plot(subset['k'], subset['score'], marker='o', linewidth=2, color='tab:blue', label='F1-Score')
 
-        # Visual indicator for the optimal parameter set
-        if p_val == selected_p and selected_k is not None:
-            ax.axvline(x=selected_k, color='red', linestyle='--', label=f'Chosen: K={selected_k}')
+        # Highlight the optimal hyperparameter configuration used in the final model
+        if p_val == selected_p and selected_k is not None: ax.axvline(x=selected_k, color='red', linestyle='--', label=f'Chosen: K={selected_k}')
 
         ax.set_title(p_titles[p_val])
         ax.set_ylabel("Validation F1-Score")
+        ax.set_xlabel("Number of Neighbors (K)")
+
+        # Explicitly set X-axis ticks to match the discrete K-values tested
+        ax.set_xticks(unique_ks)
         ax.grid(True, alpha=0.3)
         ax.legend()
 
@@ -193,24 +200,35 @@ def save_hyperparameters_table_image():
                 model = pickle.load(f)
             model_type = type(model).__name__
             params = model.get_params()
+
             # Keep only the important settings for the table
             relevant = {k: params[k] for k in important_params.get(model_type, []) if k in params}
-            data.append([model_file.replace(".pkl", ""), model_type.replace("Classifier", ""),
-                         str(relevant).replace("{", "").replace("}", "").replace("'", "")])
+            data.append([model_file.replace(".pkl", ""), model_type.replace("Classifier", ""), str(relevant).replace("{", "").replace("}", "").replace("'", "")])
         except:
             continue
 
     if not data: return
 
     # Creating the visual table using Matplotlib
-    fig, ax = plt.subplots(figsize=(14, len(data) * 0.7 + 2))
+    fig, ax = plt.subplots(figsize=(16, len(data) * 0.8 + 2))
     ax.axis('off')
-    table = ax.table(cellText=data, colLabels=["Model Name", "Type", "Key Settings"], cellLoc='left', loc='center', colWidths=[0.15, 0.15, 0.7])
-    table.auto_set_font_size(False)
-    table.set_fontsize(11)
-    table.scale(1, 2.5)
 
-    plt.title("Model Settings Summary", fontsize=18, pad=30, weight='bold')
+    # [Model Name, Type, Key Settings]
+    column_widths = [0.15, 0.10, 0.45]
+
+    table = ax.table(cellText=data, colLabels=["Model Name", "Type", "Key Settings"], cellLoc='left', loc='center', colWidths=column_widths)
+
+    # Bolding the header row
+    for (row, col), cell in table.get_celld().items():
+        if row == 0:
+            cell.get_text().set_weight('bold')
+            cell.get_text().set_fontsize(12)
+
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1, 3)
+
+    plt.title("Model Hyperparameter Configuration Summary", fontsize=18, pad=30, weight='bold')
     plt.savefig(os.path.join(REPORTS_DIR, "models_hyperparameters_table.png"), bbox_inches='tight', dpi=300)
     plt.show()
 
@@ -256,8 +274,8 @@ def save_all_classification_reports():
 # Main Execution Engine
 if __name__ == "__main__":
     # Execute all visualization routines to populate the Reports directory
-    plot_confusion_matrix()
-    plot_knn_history_from_train()
-    plot_nn_training_history()
+    #plot_confusion_matrix()
+    #plot_knn_history_from_train()
+    #plot_nn_training_history()
     save_hyperparameters_table_image()
-    save_all_classification_reports()
+    #save_all_classification_reports()
