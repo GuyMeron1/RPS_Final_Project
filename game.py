@@ -13,30 +13,33 @@ THRESHOLD = 0.5 # minimum confidence for a prediction
 FRAMES_PER_ACTION = 3 # frames needed for a stable gesture
 RESOURCE_DIR = "Resources" # directory for UI elements
 
-def load_last_model_trained():
-    """Loads the latest model from the Models directory"""
-    MODELS_DIR = "Models"
-    BEST_MODEL = "best_model.pkl"
-    path = os.path.join(MODELS_DIR, BEST_MODEL)
-    if not os.path.exists(path):
-        print(f"Error: {path} not found!")
-        return None
-    with open(path, "rb") as f:
-        return pickle.load(f)
+USE_LAST_MODEL = True # True for last model trained. False for best model ever trained.
 
-def load_best_model_ever_trained():
-    """Loads a specific high-performing historical model"""
-    MODELS_TRAINED_DIR = "Models_Trained"
-    BEST_MODEL = "best_model_DT_60P_3F_20Each.pkl"
-    path = os.path.join(MODELS_TRAINED_DIR, BEST_MODEL)
+def load_model(use_historical):
+    """
+    Loads the model based on the USE_HISTORICAL_MODEL flag.
+    """
+    if use_historical:
+        # Settings to last model trained.
+        directory = "Models"
+        model_name = "best_model.pkl"
+    else:
+        # Settings to best model ever trained.
+        directory = "Models_Trained"
+        model_name = "best_model_DT_60P_3F_20Each.pkl"
+
+    path = os.path.join(directory, model_name)
+
     if not os.path.exists(path):
         print(f"Error: {path} not found!")
         return None
+
     with open(path, "rb") as f:
+        print(f"Loading model: {model_name} from {directory}")
         return pickle.load(f)
 
 # Load the model to be used for predictions
-model = load_last_model_trained()
+model = load_model(use_historical=USE_HISTORICAL_MODEL)
 
 # Mediapipe Setup
 mp_holistic = mp.solutions.holistic

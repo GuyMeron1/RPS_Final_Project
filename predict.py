@@ -12,23 +12,33 @@ actions = ['Rock', 'Paper', 'Scissors']
 # Number of frames to collect before making a prediction (must match training)
 frames_per_action = 3
 
-# MODEL LOADING FUNCTIONS
-def load_last_model_trained():
-    MODELS_DIR = "Models"
-    BEST_MODEL = "best_model.pkl"
-    with open(os.path.join(MODELS_DIR, BEST_MODEL), "rb") as f:
-        model = pickle.load(f)
-    return model
+USE_LAST_MODEL = True # True for last model trained. False for best model ever trained.
 
-def load_best_model_ever_trained():
-    MODELS_DIR = "Models_Trained"
-    BEST_MODEL = "best_model_DT_60P_3F_20Each.pkl"
-    with open(os.path.join(MODELS_DIR, BEST_MODEL), "rb") as f:
-        model = pickle.load(f)
-    return model
+def load_model(use_historical):
+    """
+    Loads the model based on the USE_HISTORICAL_MODEL flag.
+    """
+    if use_historical:
+        # Settings to last model trained.
+        directory = "Models"
+        model_name = "best_model.pkl"
+    else:
+        # Settings to best model ever trained.
+        directory = "Models_Trained"
+        model_name = "best_model_DT_60P_3F_20Each.pkl"
 
-# Initialize the model. replace the function called to load the best model ever
-model = load_last_model_trained()
+    path = os.path.join(directory, model_name)
+
+    if not os.path.exists(path):
+        print(f"Error: {path} not found!")
+        return None
+
+    with open(path, "rb") as f:
+        print(f"Loading model: {model_name} from {directory}")
+        return pickle.load(f)
+
+# Load the model to be used for predictions
+model = load_model(use_historical=USE_HISTORICAL_MODEL)
 
 # PRE-PROCESSING FUNCTIONS
 def mediapipe_detection(image, model):
