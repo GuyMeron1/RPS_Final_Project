@@ -14,7 +14,7 @@ frames_per_action = 3
 
 USE_LAST_MODEL = True # True for last model trained. False for best model ever trained.
 
-def load_model(use_historical):
+def load_model(use_historical=True):
     """
     Loads the model based on the USE_HISTORICAL_MODEL flag.
     """
@@ -38,7 +38,7 @@ def load_model(use_historical):
         return pickle.load(f)
 
 # Load the model to be used for predictions
-model = load_model(use_historical=USE_HISTORICAL_MODEL)
+model = load_model()
 
 # PRE-PROCESSING FUNCTIONS
 def mediapipe_detection(image, model):
