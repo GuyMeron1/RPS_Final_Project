@@ -34,10 +34,7 @@ def process_videos_to_keypoints(DATA_PATH, sequence_length=None, skip_rate=1):
     os.makedirs(keypoints_dir, exist_ok=True)
 
     # Initialize MediaPipe Holistic model
-    with mp.solutions.holistic.Holistic(
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
-    ) as holistic:
+    with mp.solutions.holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
 
         # Loop through each action folder (Rock, Paper, Scissors)
         for action in os.listdir(video_dir):

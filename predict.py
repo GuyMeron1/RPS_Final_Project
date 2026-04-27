@@ -5,6 +5,7 @@ import mediapipe as mp
 import pickle
 
 # SETTINGS & CONFIGURATIONS
+
 # Colors for the probability bars (BGR format)
 colors = [(245, 117, 16), (117, 245, 16), (16, 117, 245)]
 # Labels for the classes - must be in the same order as training
@@ -15,9 +16,6 @@ frames_per_action = 3
 USE_LAST_MODEL = True # True for last model trained. False for best model ever trained.
 
 def load_model(use_historical=True):
-    """
-    Loads the model based on the USE_HISTORICAL_MODEL flag.
-    """
     if use_historical:
         # Settings to last model trained.
         directory = "Models"
